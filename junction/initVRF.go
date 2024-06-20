@@ -152,16 +152,18 @@ func InitVRF() (success bool, addr string) {
 				return true, newTempAddr
 			} else {
 				log.Error().Str("module", "junction").Str("Error", errStr).Msg("Error in InitVRF transaction")
-				// retry transaction
-				log.Debug().Str("module", "junction").Msg("Retrying InitVRF transaction after 10 seconds..")
-				time.Sleep(10 * time.Second)
-				//return false, ""
 
 				if requiredFee, ok := utilis.GetRequiredFeeFromError(errTxRes); ok {
 					if accountClientWithUpdatedFee, err2 := getAccountClient(int(requiredFee)); err2 == nil {
 						accountClient = accountClientWithUpdatedFee
+						continue
 					}
 				}
+
+				// retry transaction
+				log.Debug().Str("module", "junction").Msg("Retrying InitVRF transaction after 10 seconds..")
+				time.Sleep(10 * time.Second)
+				//return false, ""
 			}
 		} else {
 			// update transaction hash in current pod

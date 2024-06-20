@@ -108,15 +108,16 @@ func SubmitCurrentPod() (success bool) {
 			errStr := errTxRes.Error()
 			log.Error().Str("module", "junction").Str("Error", errStr).Msg("Error in SubmitPod Transaction")
 
-			log.Debug().Str("module", "junction").Msg("Retrying SubmitPod transaction after 10 seconds..")
-			time.Sleep(10 * time.Second)
-			//return false
-
 			if requiredFee, ok := utilis.GetRequiredFeeFromError(errTxRes); ok {
 				if accountClientWithUpdatedFee, err2 := getAccountClient(int(requiredFee)); err2 == nil {
 					accountClient = accountClientWithUpdatedFee
+					continue
 				}
 			}
+
+			log.Debug().Str("module", "junction").Msg("Retrying SubmitPod transaction after 10 seconds..")
+			time.Sleep(10 * time.Second)
+			//return false
 		} else {
 			// update txHash of submit pod in pod state
 			currentPodState.InitPodTxHash = txRes.TxHash

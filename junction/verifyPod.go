@@ -106,15 +106,17 @@ func VerifyCurrentPod() (success bool) {
 		if errTxRes != nil {
 			errTxResStr := errTxRes.Error()
 			log.Error().Str("module", "junction").Str("Error", errTxResStr).Msg("Error in VerifyPod transaction")
-			log.Debug().Str("module", "junction").Msg("Retrying VerifyPod transaction after 10 seconds..")
-			time.Sleep(10 * time.Second)
-			//return false
 
 			if requiredFee, ok := utilis.GetRequiredFeeFromError(errTxRes); ok {
 				if accountClientWithUpdatedFee, err2 := getAccountClient(int(requiredFee)); err2 == nil {
 					accountClient = accountClientWithUpdatedFee
+					continue
 				}
 			}
+
+			log.Debug().Str("module", "junction").Msg("Retrying VerifyPod transaction after 10 seconds..")
+			time.Sleep(10 * time.Second)
+			//return false
 		} else {
 			VerifyPodTxHash := txRes.TxHash
 			currentPodState.VerifyPodTxHash = VerifyPodTxHash
