@@ -65,13 +65,19 @@ func SubmitCurrentPod() (success bool) {
 
 	ctx := context.Background()
 	gas := utilis.GenerateRandomWithFavour(100, 300, [2]int{120, 250}, 0.7)
-	gasFees := fmt.Sprintf("%damf", gas)
-	log.Info().Str("module", "junction").Str("Gas Fees Used to Validate VRF", gasFees)
-	accountClient, err := cosmosclient.New(ctx, cosmosclient.WithAddressPrefix(addressPrefix), cosmosclient.WithNodeAddress(jsonRpc), cosmosclient.WithHome(accountPath), cosmosclient.WithGas("auto"), cosmosclient.WithFees(gasFees))
-	if err != nil {
-		logs.Log.Error("Switchyard client connection error")
-		logs.Log.Error(err.Error())
 
+	getAccountClient := func(gas int) (cosmosclient.Client, error) {
+		gasFees := fmt.Sprintf("%damf", gas)
+		log.Info().Str("module", "junction").Str("Gas Fees Used to Validate VRF", gasFees)
+		accountClient, err := cosmosclient.New(ctx, cosmosclient.WithAddressPrefix(addressPrefix), cosmosclient.WithNodeAddress(jsonRpc), cosmosclient.WithHome(accountPath), cosmosclient.WithGas("auto"), cosmosclient.WithFees(gasFees))
+		if err != nil {
+			logs.Log.Error("Switchyard client connection error")
+			logs.Log.Error(err.Error())
+		}
+		return accountClient, err
+	}
+	accountClient, err := getAccountClient(gas)
+	if err != nil {
 		return false
 	}
 
@@ -105,6 +111,12 @@ func SubmitCurrentPod() (success bool) {
 			log.Debug().Str("module", "junction").Msg("Retrying SubmitPod transaction after 10 seconds..")
 			time.Sleep(10 * time.Second)
 			//return false
+
+			if requiredFee, ok := utilis.GetRequiredFeeFromError(errTxRes); ok {
+				if accountClientWithUpdatedFee, err2 := getAccountClient(int(requiredFee)); err2 == nil {
+					accountClient = accountClientWithUpdatedFee
+				}
+			}
 		} else {
 			// update txHash of submit pod in pod state
 			currentPodState.InitPodTxHash = txRes.TxHash
