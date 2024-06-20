@@ -9,6 +9,7 @@ import (
 	logs "github.com/airchains-network/decentralized-sequencer/log"
 	"github.com/airchains-network/decentralized-sequencer/node/shared"
 	mainTypes "github.com/airchains-network/decentralized-sequencer/types"
+	utilis "github.com/airchains-network/decentralized-sequencer/utils"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosaccount"
 	"github.com/ignite/cli/v28/ignite/pkg/cosmosclient"
 	"github.com/rs/zerolog"
@@ -49,12 +50,20 @@ func InitVRF() (success bool, addr string) {
 	}
 
 	ctx := context.Background()
-	gasFees := fmt.Sprintf("%damf", 213)
-	log.Info().Str("module", "junction").Str("Gas Fees Used for Vrf Initialization", gasFees)
-	accountClient, err := cosmosclient.New(ctx, cosmosclient.WithAddressPrefix(addressPrefix), cosmosclient.WithNodeAddress(jsonRpc), cosmosclient.WithHome(accountPath), cosmosclient.WithGas("auto"), cosmosclient.WithFees(gasFees))
+
+	getAccountClient := func(gas int) (cosmosclient.Client, error) {
+		gasFees := fmt.Sprintf("%damf", gas)
+		log.Info().Str("module", "junction").Str("Gas Fees Used for Vrf Initialization", gasFees)
+		accountClient, err := cosmosclient.New(ctx, cosmosclient.WithAddressPrefix(addressPrefix), cosmosclient.WithNodeAddress(jsonRpc), cosmosclient.WithHome(accountPath), cosmosclient.WithGas("auto"), cosmosclient.WithFees(gasFees))
+		if err != nil {
+			logs.Log.Error("Switchyard client connection error")
+			logs.Log.Error(err.Error())
+		}
+		return accountClient, err
+	}
+
+	accountClient, err := getAccountClient(213)
 	if err != nil {
-		logs.Log.Error("Switchyard client connection error")
-		logs.Log.Error(err.Error())
 		return false, ""
 	}
 
@@ -147,6 +156,12 @@ func InitVRF() (success bool, addr string) {
 				log.Debug().Str("module", "junction").Msg("Retrying InitVRF transaction after 10 seconds..")
 				time.Sleep(10 * time.Second)
 				//return false, ""
+
+				if requiredFee, ok := utilis.GetRequiredFeeFromError(errTxRes); ok {
+					if accountClientWithUpdatedFee, err2 := getAccountClient(int(requiredFee)); err2 == nil {
+						accountClient = accountClientWithUpdatedFee
+					}
+				}
 			}
 		} else {
 			// update transaction hash in current pod
